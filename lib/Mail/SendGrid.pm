@@ -7,19 +7,29 @@ use Mouse 0.94;
 use HTTP::Tiny 0.013;
 use XML::Simple 2.18;
 use JSON qw(decode_json);
+use URI::Escape;
 use Mail::SendGrid::Bounce;
 
-has 'api_user'     => (is => 'ro', isa => 'Str', required => 1);
-has 'api_key'      => (is => 'ro', isa => 'Str', required => 1);
-has 'format'       => (is => 'ro', isa => 'Str', required => 1, default => 'json');
+has 'debug'     => (is => 'ro', isa => 'Bool', default => 0);
+has 'api_user'  => (is => 'ro', isa => 'Str', required => 1);
+has 'api_key'   => (is => 'ro', isa => 'Str', required => 1);
+has 'format'    => (is => 'ro', isa => 'Str', required => 1, default => 'json');
 
 our $VERSION = '0.01';
 
 sub bounces
 {
     my $self     = shift;
+    my $opts     = shift || {};
     my $uri      = "https://sendgrid.com/api/bounces.get.".$self->format.
-                    "?api_user=".$self->api_user.'&api_key='.$self->api_key.'&date=1';
+                    "?api_user=".$self->api_user.'&api_key='.$self->api_key.
+                    '&date=1';
+    for my $key (keys %$opts) {
+        my $name = uri_escape($key);
+        my $val = uri_escape($opts->{$key});
+        $uri .= '&' . $name . '=' . $val;
+    }
+    warn "URI: $uri\n" if $self->debug;
     my $response = HTTP::Tiny->new->get($uri);
     my $data;
     my @bounces;
@@ -75,6 +85,11 @@ with SendGrid. These are required.
 =method bounces
 
 This requests all outstanding bounces from SendGrid, and returns a list of Mail::SendGrid::Bounce objects.
+
+Also takes a hashref of optional parameters, as defined by the bounces.get
+method. See L<http://docs.sendgrid.com/documentation/api/web-api/webapibounces/>
+for more details. The I<date> parameter is always set to 1 so the date is
+always included in the response.
 
 =head1 SEE ALSO
 
