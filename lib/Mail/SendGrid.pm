@@ -6,27 +6,38 @@ package Mail::SendGrid;
 use Mouse 0.94;
 use HTTP::Tiny 0.013;
 use XML::Simple 2.18;
+use JSON qw(decode_json);
 use Mail::SendGrid::Bounce;
 
 has 'api_user'     => (is => 'ro', isa => 'Str', required => 1);
 has 'api_key'      => (is => 'ro', isa => 'Str', required => 1);
+has 'format'       => (is => 'ro', isa => 'Str', required => 1, default => 'json');
 
 our $VERSION = '0.01';
 
 sub bounces
 {
     my $self     = shift;
-    my $uri      = 'https://sendgrid.com/api/bounces.get.xml?api_user='.$self->api_user.'&api_key='.$self->api_key.'&date=1';
+    my $uri      = "https://sendgrid.com/api/bounces.get.".$self->format.
+                    "?api_user=".$self->api_user.'&api_key='.$self->api_key.'&date=1';
     my $response = HTTP::Tiny->new->get($uri);
     my $data;
-    my (@bounces, $bounce);
+    my @bounces;
 
     if ($response->{success})
     {
-        $data = XMLin($response->{content});
-        foreach my $hashref (@{ $data->{'bounce'} })
+        if ($self->format eq 'json') 
         {
-            $bounce = Mail::SendGrid::Bounce->new($hashref);
+            $data = decode_json($response->{content});
+        } 
+        elsif ($self->format eq 'xml') 
+        {
+            $data = XMLin($response->{content});
+            $data = @{ $data->{'bounce'} };
+        }
+        foreach my $entry (@$data)
+        {
+            my $bounce = Mail::SendGrid::Bounce->new($entry);
             push(@bounces, $bounce) if defined($bounce);
         }
     }
